@@ -1,0 +1,339 @@
+Microsoft (R) Macro Assembler Version 6.15.8803		    11/15/19 17:11:34
+selection_sort.asm					     Page 1 - 1
+
+
+				.386
+				.MODEL FLAT
+
+				INCLUDE str_utils.h
+			      C .NOLIST
+			      C .LIST
+			      C 
+				INCLUDE debug.h
+			      C INCLUDE io.h
+			      C ; IO.H -- header file for I/O macros
+			      C ; 32-bit version for flat memory model
+			      C ; R. Detmer   last revised 8/2000
+			      C .NOLIST     ; turn off listing
+			      C .LIST        ; begin listing
+			      C 
+			      C 
+ = 0000000D		      C CR          EQU    0Dh   ; carriage return character
+ = 0000000A		      C LF          EQU    0Ah   ; linefeed character
+			      C 
+ 00000000		      C .DATA
+ 00000000 0D 0A 00	      C carriage    BYTE     CR, LF, 0
+ 00000003  0000000D [	      C text        BYTE     13 DUP(?)
+	    00
+	   ]
+			      C 
+			      C outputW    	MACRO   var
+			      C                    itoa text, var
+			      C                    output text
+			      C                    output carriage
+			      C                 ENDM
+			      C 
+			      C outputD  	MACRO  var
+			      C                    dtoa text, var
+			      C                    output text
+			      C                    output carriage
+			      C          	ENDM
+			      C 
+			      C inputW          MACRO  prompt, location
+			      C                    output prompt
+			      C                    input text, 8
+			      C                    atoi text
+			      C                    mov location, ax
+			      C                 ENDM
+			      C 
+			      C inputD          MACRO  prompt, location
+			      C                    output prompt
+			      C                    input text, 13
+			      C                    atod text
+			      C                    mov location, eax
+			      C                 ENDM
+			      C 
+				PUBLIC selectionSort
+
+ 00000010			.DATA
+ 00000010 54 45 53 54 00	debug   	BYTE   "TEST",0
+ 00000015 4F 75 74 65 72	debugOutB	BYTE   "OuterS",0
+	   53 00
+ 0000001C 49 6E 6E 65 72	debugInnerB	BYTE   "InnerB",0
+	   42 00
+ 00000023 49 6E 6E 65 72	debugInnerE	BYTE   "InnerE",0
+	   45 00
+ 00000000			.CODE
+				; the address of the temporary storage DWORD 
+ = [ebp + 16]			tempAddr      EQU    [ebp + 16]
+				; the address of the array is the second parameter DWORD address
+ = [ebp + 12]			arrayAddr     EQU    [ebp + 12]
+
+				; the size of the array is the third parameter WORD 
+ = [ebp + 10]			sz	EQU     [ebp + 10]
+				; the maximum length of each string in the array (LEN) WORD
+ = [ebp + 8]			ln	EQU     [ebp + 8]
+
+ = [ebp - 4]			indexx        EQU    [ebp - 4]   ; DWORD
+ = [ebp - 6]			scan          EQU    [ebp - 6]   ; WORD
+				;tempWord	  EQU	 [ebp - 8]
+
+				; a possible idea for the swap procedure is to use lodsb and stosb (i.e. using al for temporary storage)
+ 00000000			swapproc      PROC    NEAR32
+				; swap two strings
+
+				; address of first string
+ = [ebp + 12]			_str1        EQU [ebp + 12]
+				; address of second string
+ = [ebp + 8]			_str2        EQU [ebp + 8]
+
+				; length of first string
+ = [ebp - 2]			_len1        EQU [ebp - 2]
+				; length of second string
+ = [ebp - 4]			_len2        EQU [ebp - 4]
+
+ 00000000			setup:
+				        ; entry code
+ 00000000  55					push 	ebp
+ 00000001  8B EC				mov     ebp, esp
+ 00000003  66| 6A 00				pushW	0
+ 00000006  66| 6A 00				pushW	0
+ 00000009  50					push	eax
+ 0000000A  51					push 	ecx
+ 0000000B  56					push 	esi
+ 0000000C  57					push 	edi
+ 0000000D  66| 9C				pushf
+						
+ 0000000F  FF 75 0C				push _str1
+ 00000012  E8 00000000 E			call strlen_proc
+ 00000017  66| 40		        inc  ax            ; size is in ax--  include the NULL terminator in the length
+ 00000019  66| 89 45 FE		        mov  _len1, ax     ; get and store the lengths of the source and destination strings
+
+ 0000001D  FF 75 08		        push _str2
+ 00000020  E8 00000000 E	        call strlen_proc
+ 00000025  66| 40		        inc  ax            ; include the NULL terminator in the length
+ 00000027  66| 89 45 FC		        mov  _len2, ax
+
+ 0000002B  FD			        std                ; stack increases downward, so a needed correction
+ 0000002C  0F B7 4D FE				movzx ecx, word ptr _len1
+ 00000030  8B 75 0C				mov esi, _str1
+ 00000033  8B 7D 08				mov edi, _str2
+
+ 00000036			swapThem:
+
+						
+				        ; copy source string to temp
+ 00000036  B0 00				mov		AL, 0
+ 00000038  86 06				XCHG    AL,[esi]
+ 0000003A  86 07				XCHG    AL,[edi]
+ 0000003C  86 06				XCHG    [esi],AL
+ 0000003E  46					inc 	esi
+ 0000003F  47					inc 	edi
+ 00000040  E2 F4				loop swapThem
+				        ; copy destination to source
+				        ; copy temp to destination
+ 00000042			finish:
+				       
+ 00000042  FC			        cld
+
+				        ; exit code
+ 00000043  66| 9D				popf	                 
+ 00000045  5F			        pop     edi
+ 00000046  5E			        pop     esi
+ 00000047  59			        pop     ecx
+ 00000048  58			        pop     eax
+ 00000049  8B E5		        mov     esp, ebp	
+ 0000004B  5D					pop		ebp
+ 0000004C  C2 0008				ret		8		
+
+ 0000004F			swapproc    ENDP
+
+ 0000004F			selectionSort 	PROC 	Near32
+
+ 0000004F  55					push 	ebp
+ 00000050  8B EC				mov 	ebp, esp
+ 00000052  6A 00				pushd	0
+ 00000054  52			        push 	edx
+ 00000055  51					push 	ecx
+ 00000056  53					push 	ebx
+ 00000057  50					push 	eax
+ 00000058  B1 01				mov 	cl, 1
+ 0000005A  8B 45 0C		        mov 	eax, arrayAddr    
+
+ 0000005D			outerLoop:
+
+						;indexx is smallest word ecx is loop
+ 0000005D  8A E9				mov 	ch, cl
+ 0000005F  89 45 FC				mov 	indexx, eax
+ 00000062  8B D8				mov 	ebx, eax
+ 00000064  0F B7 55 08				movzx	edx, word ptr ln
+ 00000068  03 DA				add 	ebx, edx
+ 0000006A  3A 4D 0A		        cmp 	cl, sz
+ 0000006D  74 53				je 		done
+						
+ 0000006F			innerLoop:
+
+ 0000006F  3A 6D 0A				cmp 	ch, sz
+ 00000072  74 20				je		endInner
+ 00000074  8B 45 FC				mov		eax, indexx
+ 00000077  50					push 	eax
+ 00000078  53					push	ebx
+ 00000079  E8 00000000 E			call	compare_proc
+						
+ 0000007E  3C 00		        cmp 	al, 0
+ 00000080  7E 03				jle 	minUnchanged
+						
+						;tempWord gets updated if it doesnt jump
+ 00000082  89 5D FC				mov 	indexx, ebx
+						
+ 00000085			minUnchanged:
+
+ 00000085  BA 00000000				mov		edx, 0
+ 0000008A  66| 8B 55 08				mov		dx, ln
+ 0000008E  03 DA				add 	ebx, edx
+ 00000090  FE C5				inc 	ch
+ 00000092  EB DB				jmp 	innerLoop
+				        
+ 00000094			endInner:
+
+						; swap elements (use index and min)
+ 00000094  8B 55 FC				mov		edx, indexx
+ 00000097  52					push	edx
+ 00000098  B8 00000000				mov		eax, 0
+ 0000009D  8A C1				mov		al, cl
+ 0000009F  FE C8				dec		al
+ 000000A1  BA 00000000				mov		edx, 0
+ 000000A6  66| 8B 55 08				mov		dx, ln
+ 000000AA  F7 E2				mul		edx
+ 000000AC  03 45 0C				add		eax, arrayAddr
+ 000000AF  50					push	eax
+ 000000B0  8B 55 FC				mov		edx, indexx
+ 000000B3  E8 FFFFFF48				call 	swapproc
+ 000000B8  FE C1				inc		cl
+ 000000BA  0F B7 55 08				movzx	edx, word ptr ln
+ 000000BE  03 C2				add		eax, edx
+ 000000C0  EB 9B				jmp     outerLoop
+
+ 000000C2			done:
+
+ 000000C2  58			        pop     eax
+ 000000C3  5B			        pop     ebx
+ 000000C4  59			        pop     ecx
+ 000000C5  5A			        pop     edx
+ 000000C6  8B E5		        mov     esp, ebp           ; discard local variables
+ 000000C8  5D			        pop     ebp
+ 000000C9  C2 000C		        ret     12                 ; discard the four parameters
+
+ 000000CC			selectionSort	ENDP
+
+
+
+
+				END
+Microsoft (R) Macro Assembler Version 6.15.8803		    11/15/19 17:11:34
+selection_sort.asm					     Symbols 2 - 1
+
+
+
+
+Macros:
+
+                N a m e                 Type
+
+append . . . . . . . . . . . . .	Proc
+atod . . . . . . . . . . . . . .	Proc
+atoi . . . . . . . . . . . . . .	Proc
+compare  . . . . . . . . . . . .	Proc
+dtoa . . . . . . . . . . . . . .	Proc
+equals_ignore_case . . . . . . .	Proc
+equals . . . . . . . . . . . . .	Proc
+index_of . . . . . . . . . . . .	Proc
+inputD . . . . . . . . . . . . .	Proc
+inputW . . . . . . . . . . . . .	Proc
+input  . . . . . . . . . . . . .	Proc
+itoa . . . . . . . . . . . . . .	Proc
+outputD  . . . . . . . . . . . .	Proc
+outputW  . . . . . . . . . . . .	Proc
+output . . . . . . . . . . . . .	Proc
+replace  . . . . . . . . . . . .	Proc
+strcopy  . . . . . . . . . . . .	Proc
+strlen . . . . . . . . . . . . .	Proc
+substring  . . . . . . . . . . .	Proc
+to_lower . . . . . . . . . . . .	Proc
+
+
+Segments and Groups:
+
+                N a m e                 Size     Length   Align   Combine Class
+
+FLAT . . . . . . . . . . . . . .	GROUP
+_DATA  . . . . . . . . . . . . .	32 Bit	 0000002A DWord	  Public  'DATA'	
+_TEXT  . . . . . . . . . . . . .	32 Bit	 000000CC DWord	  Public  'CODE'	
+
+
+Procedures,  parameters and locals:
+
+                N a m e                 Type     Value    Attr
+
+selectionSort  . . . . . . . . .	P Near	 0000004F _TEXT	Length= 0000007D Public
+  outerLoop  . . . . . . . . . .	L Near	 0000005D _TEXT	
+  innerLoop  . . . . . . . . . .	L Near	 0000006F _TEXT	
+  minUnchanged . . . . . . . . .	L Near	 00000085 _TEXT	
+  endInner . . . . . . . . . . .	L Near	 00000094 _TEXT	
+  done . . . . . . . . . . . . .	L Near	 000000C2 _TEXT	
+swapproc . . . . . . . . . . . .	P Near	 00000000 _TEXT	Length= 0000004F Public
+  setup  . . . . . . . . . . . .	L Near	 00000000 _TEXT	
+  swapThem . . . . . . . . . . .	L Near	 00000036 _TEXT	
+  finish . . . . . . . . . . . .	L Near	 00000042 _TEXT	
+
+
+Symbols:
+
+                N a m e                 Type     Value    Attr
+
+@CodeSize  . . . . . . . . . . .	Number	 00000000h   
+@DataSize  . . . . . . . . . . .	Number	 00000000h   
+@Interface . . . . . . . . . . .	Number	 00000000h   
+@Model . . . . . . . . . . . . .	Number	 00000007h   
+@code  . . . . . . . . . . . . .	Text   	 _TEXT
+@data  . . . . . . . . . . . . .	Text   	 FLAT
+@fardata?  . . . . . . . . . . .	Text   	 FLAT
+@fardata . . . . . . . . . . . .	Text   	 FLAT
+@stack . . . . . . . . . . . . .	Text   	 FLAT
+CR . . . . . . . . . . . . . . .	Number	 0000000Dh   
+LF . . . . . . . . . . . . . . .	Number	 0000000Ah   
+_len1  . . . . . . . . . . . . .	Text   	 [ebp - 2]
+_len2  . . . . . . . . . . . . .	Text   	 [ebp - 4]
+_str1  . . . . . . . . . . . . .	Text   	 [ebp + 12]
+_str2  . . . . . . . . . . . . .	Text   	 [ebp + 8]
+append_proc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+arrayAddr  . . . . . . . . . . .	Text   	 [ebp + 12]
+atodproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+atoiproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+carriage . . . . . . . . . . . .	Byte	 00000000 _DATA	
+compare_proc . . . . . . . . . .	L Near	 00000000 FLAT	External
+debugInnerB  . . . . . . . . . .	Byte	 0000001C _DATA	
+debugInnerE  . . . . . . . . . .	Byte	 00000023 _DATA	
+debugOutB  . . . . . . . . . . .	Byte	 00000015 _DATA	
+debug  . . . . . . . . . . . . .	Byte	 00000010 _DATA	
+dtoaproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+equals_ignore_case_proc  . . . .	L Near	 00000000 FLAT	External
+equals_proc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+indexof_proc . . . . . . . . . .	L Near	 00000000 FLAT	External
+indexx . . . . . . . . . . . . .	Text   	 [ebp - 4]
+inproc . . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+itoaproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+ln . . . . . . . . . . . . . . .	Text   	 [ebp + 8]
+outproc  . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+replace_proc . . . . . . . . . .	L Near	 00000000 FLAT	External
+scan . . . . . . . . . . . . . .	Text   	 [ebp - 6]
+strcopy_proc . . . . . . . . . .	L Near	 00000000 FLAT	External
+strlen_proc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+substring_proc . . . . . . . . .	L Near	 00000000 FLAT	External
+sz . . . . . . . . . . . . . . .	Text   	 [ebp + 10]
+tempAddr . . . . . . . . . . . .	Text   	 [ebp + 16]
+text . . . . . . . . . . . . . .	Byte	 00000003 _DATA	
+tolower_proc . . . . . . . . . .	L Near	 00000000 FLAT	External
+
+	   0 Warnings
+	   0 Errors

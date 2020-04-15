@@ -1,0 +1,310 @@
+Microsoft (R) Macro Assembler Version 6.15.8803		    11/15/19 17:11:34
+sort.asm						     Page 1 - 1
+
+
+				.386
+				.MODEL FLAT
+
+				ExitProcess PROTO NEAR32 stdcall, dwExitCode:DWORD
+				INCLUDE debug.h
+			      C INCLUDE io.h
+			      C ; IO.H -- header file for I/O macros
+			      C ; 32-bit version for flat memory model
+			      C ; R. Detmer   last revised 8/2000
+			      C .NOLIST     ; turn off listing
+			      C .LIST        ; begin listing
+			      C 
+			      C 
+ = 0000000D		      C CR          EQU    0Dh   ; carriage return character
+ = 0000000A		      C LF          EQU    0Ah   ; linefeed character
+			      C 
+ 00000000		      C .DATA
+ 00000000 0D 0A 00	      C carriage    BYTE     CR, LF, 0
+ 00000003  0000000D [	      C text        BYTE     13 DUP(?)
+	    00
+	   ]
+			      C 
+			      C outputW    	MACRO   var
+			      C                    itoa text, var
+			      C                    output text
+			      C                    output carriage
+			      C                 ENDM
+			      C 
+			      C outputD  	MACRO  var
+			      C                    dtoa text, var
+			      C                    output text
+			      C                    output carriage
+			      C          	ENDM
+			      C 
+			      C inputW          MACRO  prompt, location
+			      C                    output prompt
+			      C                    input text, 8
+			      C                    atoi text
+			      C                    mov location, ax
+			      C                 ENDM
+			      C 
+			      C inputD          MACRO  prompt, location
+			      C                    output prompt
+			      C                    input text, 13
+			      C                    atod text
+			      C                    mov location, eax
+			      C                 ENDM
+			      C 
+				INCLUDE io.h         ; header file for input/output
+			      C ; IO.H -- header file for I/O macros
+			      C ; 32-bit version for flat memory model
+			      C ; R. Detmer   last revised 8/2000
+			      C .NOLIST     ; turn off listing
+			      C .LIST        ; begin listing
+			      C 
+				INCLUDE str_utils.h
+			      C .NOLIST
+			      C .LIST
+			      C 
+
+ = 0000000D			CR      EQU     0dh     ; carriage return character
+ = 0000000A			LF      EQU     0ah     ; line feed
+ = 00000064			MAX     EQU     100     ; the maximum number of strings in the array is 100
+ = 0000000D			LEN     EQU     13      ; the maximum length of each string is 13 bytes (remember the 0 at the end)
+
+				.STACK  4096            ; reserve 4096-byte stack
+
+ 00000010			.DATA                   ; reserve storage for data
+
+				; the strings must have extra space added for proper swapping
+ 00000010 45 6E 74 65 72	prompt   BYTE   "Enter a string: ", 0
+	   20 61 20 73 74
+	   72 69 6E 67 3A
+	   20 00
+ 00000021  00000514 [		strArray BYTE   MAX * LEN DUP (?) 
+	    00
+	   ]
+ 00000535 0000			sz       WORD   ?                          ; the size of the array
+ 00000537  0000000E [		temp     BYTE   LEN + 1 DUP (?)            ; string placed here while being read in
+	    00
+	   ]
+
+ 00000545 54 68 65 20 6E	reportNum   BYTE   "The number of strings entered is ",0
+	   75 6D 62 65 72
+	   20 6F 66 20 73
+	   74 72 69 6E 67
+	   73 20 65 6E 74
+	   65 72 65 64 20
+	   69 73 20 00
+ 00000567  00000006 [		arraySize   BYTE   6 DUP (?),0             ; ASCII for part of the report
+	    00
+	   ] 00
+
+ 0000056E  00000032 [		text_        BYTE   50 DUP (?)
+	    00
+	   ]
+ 000005A0 0D 0A 00		carriage_return    BYTE   CR, LF, 0
+
+
+				EXTRN 	        selectionSort:NEAR32
+ 00000000			.CODE                                      ; start of main program code
+
+				                ; a macro to place a string in the array at the given index
+				                ; strings do not have to be added to the array in order
+				fillArray       MACRO   array, str1, index
+								
+								mov ax, index
+								mov bx, LEN
+								mul bx
+								lea ecx, str1
+								push ecx
+								lea ecx, array
+								movzx eax, ax
+								add ecx, eax
+								push ecx
+								call strcopy_proc
+								
+				                ENDM
+
+								
+								
+				                ; a macro to display the contents of the string array
+				printArray      MACRO   array
+
+								mov ecx, 0
+								mov cx, sz
+				                lea ebx, array
+								
+				forloop:
+								output [ebx]
+								output carriage_return
+								add ebx, LEN
+								loop forloop
+								
+				                ENDM
+				;Main PROC
+ 00000000			_start:
+ 00000000							
+ 00000000  66| C7 05		                mov sz, 0                        ; initialize the size of the array to 0
+	   00000535 R
+	   0000
+ 00000009  8D 1D 00000021 R	                lea ebx, strarray                ; get the address of the first array element and place it in ebx
+								
+				            
+ 0000000F			whileLoop:  
+ 0000000F  66| 83 3D		                  cmp       sz, MAX              ; test to see if size is larger than MAX (set the flags for the next jump)
+	   00000535 R 64
+ 00000017  73 7C		                  jae       endWhile             ; exit the loop if the max number of integers has been added to the array (unsigned jump command)
+				                                           
+				                  output    prompt               ; prompt for the first grade (above bytes are displayed until 0 encountered)
+				                  input     temp, LEN + 1        ; read ASCII characters (stored in eax)
+
+ 0000003B  8D 1D 00000537 R	                  lea       ebx, temp
+ 00000041  8A 0B		                  mov       cl, BYTE PTR [ebx]   ; test the first character for an "x"
+ 00000043  80 F9 78		                  cmp       cl, "x"
+ 00000046  74 4D		                  je        endWhile             ; exit the while loop if the sentinel is entered (the string entered starts with a "q")
+
+				                  fillarray strarray, temp, sz   ; put the text in the array at the current index
+				                  output temp
+				                  output carriage_return
+
+ 00000089  66| FF 05		                  inc       sz                   ; add 1 to size
+	   00000535 R
+ 00000090  E9 FFFFFF7A		                  jmp       whileLoop            ; get the next integer from the user (back to the top of the loop)
+ 00000095			endWhile:
+
+				                output     carriage_return
+				                output     reportNum             ; report the number of strings placed into the array
+				                outputW    sz
+				                output     arraySize
+				                output     carriage_return
+ 00000100  66| 83 3D		                cmp sz, 0
+	   00000535 R 00
+ 00000108  74 56		                je done
+				                ;printArray strArray
+
+				                ; prepare to sort (pass parameters to selection sort)
+ 0000010A  8D 0D 00000021 R	                lea        ecx, strArray
+ 00000110  51			                push       ecx
+ 00000111  66| FF 35		                pushw      sz
+	   00000535 R
+ 00000118  66| B8 000D		                mov        ax, LEN
+ 0000011C  66| 50		                push       ax
+				                ; sort!
+ 0000011E  E8 00000000 E	                call       selectionSort
+
+				                output     carriage_return
+				                printArray strArray
+
+				                
+ 00000160			done:
+				;ret
+				                INVOKE  ExitProcess, 0          ; exit with return code 0
+
+ 00000167			PUBLIC _start                   ; make entry point public
+				 ;Main ENDP
+				END                             ; end of source code
+
+Microsoft (R) Macro Assembler Version 6.15.8803		    11/15/19 17:11:34
+sort.asm						     Symbols 2 - 1
+
+
+
+
+Macros:
+
+                N a m e                 Type
+
+append . . . . . . . . . . . . .	Proc
+atod . . . . . . . . . . . . . .	Proc
+atoi . . . . . . . . . . . . . .	Proc
+compare  . . . . . . . . . . . .	Proc
+dtoa . . . . . . . . . . . . . .	Proc
+equals_ignore_case . . . . . . .	Proc
+equals . . . . . . . . . . . . .	Proc
+fillArray  . . . . . . . . . . .	Proc
+index_of . . . . . . . . . . . .	Proc
+inputD . . . . . . . . . . . . .	Proc
+inputW . . . . . . . . . . . . .	Proc
+input  . . . . . . . . . . . . .	Proc
+itoa . . . . . . . . . . . . . .	Proc
+outputD  . . . . . . . . . . . .	Proc
+outputW  . . . . . . . . . . . .	Proc
+output . . . . . . . . . . . . .	Proc
+printArray . . . . . . . . . . .	Proc
+replace  . . . . . . . . . . . .	Proc
+strcopy  . . . . . . . . . . . .	Proc
+strlen . . . . . . . . . . . . .	Proc
+substring  . . . . . . . . . . .	Proc
+to_lower . . . . . . . . . . . .	Proc
+
+
+Segments and Groups:
+
+                N a m e                 Size     Length   Align   Combine Class
+
+FLAT . . . . . . . . . . . . . .	GROUP
+STACK  . . . . . . . . . . . . .	32 Bit	 00001000 DWord	  Stack	  'STACK'	 
+_DATA  . . . . . . . . . . . . .	32 Bit	 000005A3 DWord	  Public  'DATA'	
+_TEXT  . . . . . . . . . . . . .	32 Bit	 00000167 DWord	  Public  'CODE'	
+
+
+Procedures,  parameters and locals:
+
+                N a m e                 Type     Value    Attr
+
+$$$00001 . . . . . . . . . . . .	P Near	 00000000 _TEXT	Length= 00000167 Private
+  whileLoop  . . . . . . . . . .	L Near	 0000000F _TEXT	
+  endWhile . . . . . . . . . . .	L Near	 00000095 _TEXT	
+  forloop  . . . . . . . . . . .	L Near	 00000143 _TEXT	
+  done . . . . . . . . . . . . .	L Near	 00000160 _TEXT	
+ExitProcess  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+
+
+Symbols:
+
+                N a m e                 Type     Value    Attr
+
+@CodeSize  . . . . . . . . . . .	Number	 00000000h   
+@DataSize  . . . . . . . . . . .	Number	 00000000h   
+@Interface . . . . . . . . . . .	Number	 00000000h   
+@Model . . . . . . . . . . . . .	Number	 00000007h   
+@code  . . . . . . . . . . . . .	Text   	 _TEXT
+@data  . . . . . . . . . . . . .	Text   	 FLAT
+@fardata?  . . . . . . . . . . .	Text   	 FLAT
+@fardata . . . . . . . . . . . .	Text   	 FLAT
+@stack . . . . . . . . . . . . .	Text   	 FLAT
+CR . . . . . . . . . . . . . . .	Number	 0000000Dh   
+LEN  . . . . . . . . . . . . . .	Number	 0000000Dh   
+LF . . . . . . . . . . . . . . .	Number	 0000000Ah   
+MAX  . . . . . . . . . . . . . .	Number	 00000064h   
+_start . . . . . . . . . . . . .	L Near	 00000000 _TEXT	Public
+append_proc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+arraySize  . . . . . . . . . . .	Byte	 00000567 _DATA	
+atodproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+atoiproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+carriage_return  . . . . . . . .	Byte	 000005A0 _DATA	
+carriage . . . . . . . . . . . .	Byte	 00000000 _DATA	
+compare_proc . . . . . . . . . .	L Near	 00000000 FLAT	External
+done . . . . . . . . . . . . . .	L Near	 00000160 _TEXT	
+dtoaproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+endWhile . . . . . . . . . . . .	L Near	 00000095 _TEXT	
+equals_ignore_case_proc  . . . .	L Near	 00000000 FLAT	External
+equals_proc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+forloop  . . . . . . . . . . . .	L Near	 00000143 _TEXT	
+indexof_proc . . . . . . . . . .	L Near	 00000000 FLAT	External
+inproc . . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+itoaproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+outproc  . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+prompt . . . . . . . . . . . . .	Byte	 00000010 _DATA	
+replace_proc . . . . . . . . . .	L Near	 00000000 FLAT	External
+reportNum  . . . . . . . . . . .	Byte	 00000545 _DATA	
+selectionSort  . . . . . . . . .	L Near	 00000000 FLAT	External
+strArray . . . . . . . . . . . .	Byte	 00000021 _DATA	
+strcopy_proc . . . . . . . . . .	L Near	 00000000 FLAT	External
+strlen_proc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+substring_proc . . . . . . . . .	L Near	 00000000 FLAT	External
+sz . . . . . . . . . . . . . . .	Word	 00000535 _DATA	
+temp . . . . . . . . . . . . . .	Byte	 00000537 _DATA	
+text_  . . . . . . . . . . . . .	Byte	 0000056E _DATA	
+text . . . . . . . . . . . . . .	Byte	 00000003 _DATA	
+tolower_proc . . . . . . . . . .	L Near	 00000000 FLAT	External
+whileLoop  . . . . . . . . . . .	L Near	 0000000F _TEXT	
+
+	   0 Warnings
+	   0 Errors
